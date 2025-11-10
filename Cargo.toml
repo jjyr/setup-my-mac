@@ -1,0 +1,21 @@
+[package]
+name = "setup-my-mac"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/jjyr/setup-my-mac"
+description = "Single-file macOS management."
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+color-eyre = "0.6"
+indicatif = "0.17"
+dialoguer = "0.11"
+serde = { version = "1", features = ["derive"] }
+shellexpand = "3"
+tempfile = "3"
+toml = "0.9"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+console = "0.16"
