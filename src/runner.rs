@@ -60,7 +60,9 @@ impl Runner {
                 style(step.display_name()).bold()
             ));
 
+            sudo.set_prompt_ui(pb.clone());
             let result = self.run_step(step, &mut sudo, pb.clone());
+            sudo.clear_prompt_ui();
 
             match result {
                 Ok(_) => pb.finish_with_message(format!(

@@ -2,6 +2,8 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
+use console::Term;
+use indicatif::ProgressBar;
 use tracing::debug;
 
 const SUDO_TTL: Duration = Duration::from_secs(4 * 60);
@@ -9,9 +11,55 @@ const SUDO_TTL: Duration = Duration::from_secs(4 * 60);
 #[derive(Default)]
 pub struct SudoHelper {
     valid_until: Option<Instant>,
+    prompt_ui: Option<SudoPromptUi>,
+}
+
+#[derive(Clone)]
+struct SudoPromptUi {
+    progress: ProgressBar,
+}
+
+impl SudoPromptUi {
+    fn new(progress: ProgressBar) -> Self {
+        Self { progress }
+    }
+
+    fn with_cursor_hint<T>(&self, f: impl FnOnce() -> T) -> T {
+        self.progress.println("  Waiting for sudo password…");
+        self.progress.suspend(|| {
+            let _cursor = CursorGuard::new();
+            f()
+        })
+    }
+}
+
+struct CursorGuard {
+    term: Term,
+}
+
+impl CursorGuard {
+    fn new() -> Self {
+        let term = Term::stderr();
+        let _ = term.show_cursor();
+        CursorGuard { term }
+    }
+}
+
+impl Drop for CursorGuard {
+    fn drop(&mut self) {
+        let _ = self.term.show_cursor();
+    }
 }
 
 impl SudoHelper {
+    pub fn set_prompt_ui(&mut self, progress: ProgressBar) {
+        self.prompt_ui = Some(SudoPromptUi::new(progress));
+    }
+
+    pub fn clear_prompt_ui(&mut self) {
+        self.prompt_ui = None;
+    }
+
     pub fn run(&mut self, program: &str, args: &[&str]) -> Result<()> {
         let output = self.exec(program, args)?;
         if output.status.success() {
@@ -99,6 +147,14 @@ impl SudoHelper {
     }
 
     fn prompt_through_sudo(&mut self) -> Result<()> {
+        if let Some(ui) = self.prompt_ui.clone() {
+            ui.with_cursor_hint(|| self.refresh_credentials())
+        } else {
+            self.refresh_credentials()
+        }
+    }
+
+    fn refresh_credentials(&mut self) -> Result<()> {
         let status = Command::new("sudo")
             .arg("-v")
             .status()

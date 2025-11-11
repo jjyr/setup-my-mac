@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::Write;
+use std::io::{ErrorKind, Write};
 use std::path::Path;
 use std::process::Command;
 
@@ -83,7 +83,15 @@ fn ensure_timezone(ctx: &mut StepContext<'_>, target: &str) -> Result<()> {
 
 fn enable_touch_id(ctx: &mut StepContext<'_>) -> Result<()> {
     let pam_path = Path::new("/etc/pam.d/sudo_local");
-    let contents = fs::read_to_string(pam_path).with_context(|| "reading /etc/pam.d/sudo_local")?;
+    let contents = match fs::read_to_string(pam_path) {
+        Ok(contents) => contents,
+        Err(err) if err.kind() == ErrorKind::NotFound => {
+            fs::read_to_string("/etc/pam.d/sudo").with_context(|| "reading /etc/pam.d/sudo")?
+        }
+        Err(err) => {
+            return Err(err).with_context(|| "reading /etc/pam.d/sudo_local");
+        }
+    };
     if contents.contains("pam_tid.so") {
         return Ok(());
     }
